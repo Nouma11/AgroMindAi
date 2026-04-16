@@ -1,0 +1,42 @@
+# Agriculture ML Project Configuration
+
+paths:
+  data: "data/soil_dataset.csv"
+  crop_model: "models/crop_model.pkl"
+  fertilizer_model: "models/fertilizer_model.pkl"
+  columns: "models/columns.pkl"
+
+model:
+  algorithm: "RandomForestClassifier"
+  tuning: "RandomizedSearchCV (n_iter=30, 5-fold stratified CV)"
+  class_weight: "balanced"
+  random_state: 42
+
+training:
+  test_size: 0.2
+  random_state: 42
+  stratify: true
+  cross_validation: 5
+
+api:
+  host: "0.0.0.0"
+  port: 8001
+  reload: true
+
+features:
+  - Temparature
+  - Humidity
+  - Moisture
+  - Soil_Type
+  - Nitrogen
+  - Potassium
+  - Phosphorous
+
+engineered_features:
+  - N_K_ratio
+  - P_N_ratio
+  - Temp_Humidity
+
+targets:
+  - Crop_Type
+  - Fertilizer Name
