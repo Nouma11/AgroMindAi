@@ -31,15 +31,15 @@
         "url": "http://127.0.0.1:8001/classify",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ question: $json.body.farmer_question || '' }) }}",
+        "jsonBody": "={{ JSON.stringify({ question: $('Webhook').first().json.body.farmer_question || '' }) }}",
         "options": {
           "timeout": 15000
         }
       }
     },
     {
-      "id": "node-router-003",
-      "name": "Route by Topic",
+      "id": "node-router-agri-003",
+      "name": "Is Agriculture?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
@@ -51,16 +51,16 @@
           "options": {
             "caseSensitive": false,
             "leftValue": "",
-            "typeValidation": "strict"
+            "typeValidation": "loose"
           },
           "conditions": [
             {
-              "id": "cond-001",
-              "leftValue": "={{ $json.is_agriculture }}",
-              "rightValue": true,
+              "id": "cond-agri",
+              "leftValue": "={{ String($json.is_agriculture) }}",
+              "rightValue": "true",
               "operator": {
-                "type": "boolean",
-                "operation": "equal"
+                "type": "string",
+                "operation": "equals"
               }
             }
           ],
@@ -70,83 +70,58 @@
       }
     },
     {
-      "id": "node-features-004",
-      "name": "Get Features",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
+      "id": "node-router-location-004",
+      "name": "Has Location?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
       "position": [
         1020,
         160
       ],
       "parameters": {
-        "method": "GET",
-        "url": "=http://127.0.0.1:8001/features?latitude={{ $('Webhook').first().json.body.latitude }}&longitude={{ $('Webhook').first().json.body.longitude }}",
-        "options": {
-          "timeout": 30000
-        }
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-loc",
+              "leftValue": "={{ $('Webhook').first().json.body.latitude }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       }
     },
     {
-      "id": "node-predict-005",
-      "name": "Predict Crop",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1280,
-        160
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "http://127.0.0.1:8001/predict",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ Temparature: Number($json.Temparature), Humidity: Number($json.Humidity), Moisture: Number($json.Moisture), Soil_Type: $json.Soil_Type, Nitrogen: Number($json.Nitrogen), Potassium: Number($json.Potassium), Phosphorous: Number($json.Phosphorous) }) }}",
-        "options": {
-          "timeout": 30000
-        }
-      }
-    },
-    {
-      "id": "node-explain-006",
-      "name": "Explain Crop",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1540,
-        160
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "http://127.0.0.1:8001/explain",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ crop: $json.recommended_crop, fertilizer: $json.recommended_fertilizer, location: $('Get Features').first().json.location, soil_type: $('Get Features').first().json.Soil_Type, temperature: Number($('Get Features').first().json.Temparature), humidity: Number($('Get Features').first().json.Humidity), moisture: Number($('Get Features').first().json.Moisture), nitrogen: Number($('Get Features').first().json.Nitrogen), potassium: Number($('Get Features').first().json.Potassium), phosphorous: Number($('Get Features').first().json.Phosphorous), farmer_question: $('Webhook').first().json.body.farmer_question || '' }) }}",
-        "options": {
-          "timeout": 60000
-        }
-      }
-    },
-    {
-      "id": "node-format-ml-007",
-      "name": "Format ML Response",
+      "id": "node-not-agri-005",
+      "name": "Format Not Agriculture",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1800,
-        160
+        1020,
+        500
       ],
       "parameters": {
-        "jsCode": "const features = $('Get Features').first().json;\nconst prediction = $('Predict Crop').first().json;\nconst explanation = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    response_type: 'ml_prediction',\n    location: features.location,\n    soil_features: {\n      soil_type: features.Soil_Type,\n      nitrogen: features.Nitrogen,\n      potassium: features.Potassium,\n      phosphorous: features.Phosphorous\n    },\n    weather_features: {\n      temperature: features.Temparature,\n      humidity: features.Humidity,\n      moisture: features.Moisture\n    },\n    recommended_crop: prediction.recommended_crop,\n    recommended_fertilizer: prediction.recommended_fertilizer,\n    explanation: explanation.explanation || explanation.error || 'LLM explanation not available',\n    explanation_source: explanation.source || 'unknown',\n    timestamp: new Date().toISOString()\n  }\n}];"
+        "jsCode": "return [{\n  json: {\n    success: false,\n    response_type: 'not_agriculture',\n    location: null,\n    soil_features: null,\n    weather_features: null,\n    recommended_crop: null,\n    recommended_fertilizer: null,\n    explanation: 'I am a farming assistant and can only help with agricultural questions. Please ask me about crops, soil, fertilizers, irrigation, pests, or any other farming topic.',\n    explanation_source: 'system',\n    timestamp: new Date().toISOString()\n  }\n}];"
       }
     },
     {
-      "id": "node-respond-ml-008",
-      "name": "Respond ML",
+      "id": "node-respond-not-agri-006",
+      "name": "Respond Not Agriculture",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        2060,
-        160
+        1280,
+        500
       ],
       "parameters": {
         "respondWith": "json",
@@ -169,46 +144,145 @@
       }
     },
     {
-      "id": "node-gemini-009",
-      "name": "Ask Gemini",
+      "id": "node-features-007",
+      "name": "Get Features",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1020,
-        480
+        1280,
+        60
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=http://127.0.0.1:8001/features?latitude={{ $('Webhook').first().json.body.latitude }}&longitude={{ $('Webhook').first().json.body.longitude }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-predict-008",
+      "name": "Predict Crop",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1540,
+        60
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://127.0.0.1:8001/ask_farmer",
+        "url": "http://127.0.0.1:8001/predict",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ question: $('Webhook').first().json.body.farmer_question || '', latitude: $('Webhook').first().json.body.latitude || null, longitude: $('Webhook').first().json.body.longitude || null }) }}",
+        "jsonBody": "={{ JSON.stringify({ Temparature: Number($json.Temparature), Humidity: Number($json.Humidity), Moisture: Number($json.Moisture), Soil_Type: $json.Soil_Type, Nitrogen: Number($json.Nitrogen), Potassium: Number($json.Potassium), Phosphorous: Number($json.Phosphorous) }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "node-explain-009",
+      "name": "Explain Crop",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1800,
+        60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8001/explain",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ crop: $json.recommended_crop, fertilizer: $json.recommended_fertilizer, location: $('Get Features').first().json.location, soil_type: $('Get Features').first().json.Soil_Type, temperature: Number($('Get Features').first().json.Temparature), humidity: Number($('Get Features').first().json.Humidity), moisture: Number($('Get Features').first().json.Moisture), nitrogen: Number($('Get Features').first().json.Nitrogen), potassium: Number($('Get Features').first().json.Potassium), phosphorous: Number($('Get Features').first().json.Phosphorous), farmer_question: $('Webhook').first().json.body.farmer_question || '' }) }}",
         "options": {
           "timeout": 60000
         }
       }
     },
     {
-      "id": "node-format-gemini-010",
-      "name": "Format Gemini Response",
+      "id": "node-format-ml-010",
+      "name": "Format ML Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1280,
-        480
+        2060,
+        60
       ],
       "parameters": {
-        "jsCode": "const geminiData = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    response_type: 'general_farming_advice',\n    location: null,\n    soil_features: null,\n    weather_features: null,\n    recommended_crop: null,\n    recommended_fertilizer: null,\n    explanation: geminiData.answer || 'Sorry, I could not answer your question at this time.',\n    explanation_source: geminiData.source || 'gemini',\n    timestamp: new Date().toISOString()\n  }\n}];"
+        "jsCode": "const features = $('Get Features').first().json;\nconst prediction = $('Predict Crop').first().json;\nconst explanation = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    response_type: 'ml_prediction',\n    location: features.location,\n    soil_features: {\n      soil_type: features.Soil_Type,\n      nitrogen: features.Nitrogen,\n      potassium: features.Potassium,\n      phosphorous: features.Phosphorous\n    },\n    weather_features: {\n      temperature: features.Temparature,\n      humidity: features.Humidity,\n      moisture: features.Moisture\n    },\n    recommended_crop: prediction.recommended_crop,\n    recommended_fertilizer: prediction.recommended_fertilizer,\n    explanation: explanation.explanation || explanation.error || 'LLM explanation not available',\n    explanation_source: explanation.source || 'unknown',\n    timestamp: new Date().toISOString()\n  }\n}];"
       }
     },
     {
-      "id": "node-respond-gemini-011",
-      "name": "Respond Gemini",
+      "id": "node-respond-ml-011",
+      "name": "Respond ML",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
+        2320,
+        60
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "node-llm-012",
+      "name": "Ask LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1280,
+        280
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8001/ask_farmer",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ question: $('Webhook').first().json.body.farmer_question || '', latitude: null, longitude: null }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "node-format-llm-013",
+      "name": "Format LLM Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
         1540,
-        480
+        280
+      ],
+      "parameters": {
+        "jsCode": "const llmData = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    response_type: 'general_farming_advice',\n    location: null,\n    soil_features: null,\n    weather_features: null,\n    recommended_crop: null,\n    recommended_fertilizer: null,\n    explanation: llmData.answer || 'Sorry, I could not answer your question at this time.',\n    explanation_source: llmData.source || 'ollama',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "node-respond-llm-014",
+      "name": "Respond LLM",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        280
       ],
       "parameters": {
         "respondWith": "json",
@@ -247,14 +321,32 @@
       "main": [
         [
           {
-            "node": "Route by Topic",
+            "node": "Is Agriculture?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Route by Topic": {
+    "Is Agriculture?": {
+      "main": [
+        [
+          {
+            "node": "Has Location?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Not Agriculture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Location?": {
       "main": [
         [
           {
@@ -265,7 +357,18 @@
         ],
         [
           {
-            "node": "Ask Gemini",
+            "node": "Ask LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Not Agriculture": {
+      "main": [
+        [
+          {
+            "node": "Respond Not Agriculture",
             "type": "main",
             "index": 0
           }
@@ -316,22 +419,22 @@
         ]
       ]
     },
-    "Ask Gemini": {
+    "Ask LLM": {
       "main": [
         [
           {
-            "node": "Format Gemini Response",
+            "node": "Format LLM Response",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Format Gemini Response": {
+    "Format LLM Response": {
       "main": [
         [
           {
-            "node": "Respond Gemini",
+            "node": "Respond LLM",
             "type": "main",
             "index": 0
           }
